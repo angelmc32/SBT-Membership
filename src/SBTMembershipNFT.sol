@@ -2,13 +2,13 @@
 pragma solidity ^0.8.13;
 
 contract SoulboundMembershipNFT {
-    string public organizationName;
+    string public _organizationName;
 
     function setOrganizationName(string memory newOrgName) public {
-        organizationName = newOrgName;
+        _organizationName = newOrgName;
     }
 
     function getOrganizationName() public view returns(string memory){
-        return organizationName;
+        return _organizationName;
     }
 }
