@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GNU General Public License v3.0
 pragma solidity ^0.8.13;
 
 contract SoulboundMembershipNFT {
