@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GNU General Public License v3.0
 pragma solidity ^0.8.13;
 
-import {IERC721Receiver} from "../lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
 import {SoulboundModERC721} from "./SoulboundModERC721.sol";
+import {Context} from "../lib/openzeppelin-contracts/contracts/utils/Context.sol";
 
-contract SoulboundMembershipNFT is IERC721Receiver {
+contract SoulboundMembershipNFT is SoulboundModERC721 {
     string public _organizationName;
+
+    constructor(string memory organizationName_) SoulboundModERC721("Soulbound Membership Token", "SBMBT", _msgSender()) {
+        _organizationName = organizationName_;
+    }
 
     function setOrganizationName(string memory newOrgName) public {
         _organizationName = newOrgName;
@@ -14,11 +18,4 @@ contract SoulboundMembershipNFT is IERC721Receiver {
     function getOrganizationName() public view returns(string memory){
         return _organizationName;
     }
-    
-    function onERC721Received(
-        address operator_,
-        address from,
-        uint256 tokenId,
-        bytes calldata data
-    ) external virtual returns (bytes4) {}
 }

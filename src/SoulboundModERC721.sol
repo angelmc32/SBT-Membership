@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GNU General Public License v3.0
 pragma solidity ^0.8.13;
 
+import {SBT_IERC721} from "./SBT_IERC721.sol";
 import {ERC165} from "../lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "../lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "../lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
@@ -10,7 +11,7 @@ import {Context} from "../lib/openzeppelin-contracts/contracts/utils/Context.sol
 import {Address} from "../lib/openzeppelin-contracts/contracts/utils/Address.sol";
 import {Strings} from "../lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract SoulboundModERC721 is Context, ERC165, IERC721, IERC721Metadata {
+contract SoulboundModERC721 is Context, SBT_IERC721 {
     using Address for address;
     using Strings for uint256;
 
@@ -31,29 +32,29 @@ contract SoulboundModERC721 is Context, ERC165, IERC721, IERC721Metadata {
 
     // IERC721 Overrides
 
-    function balanceOf(address owner) public view virtual returns(uint256) {
+    function balanceOf(address owner) public view virtual override returns(uint256) {
         require(owner != address(0), "SoulboundModERC721: Address zero (0) not valid");
         return _balances[owner];
     }
 
-    function ownerOf(uint256 tokenId) public view virtual returns(address) {
+    function ownerOf(uint256 tokenId) public view virtual override returns(address) {
         address owner = _ownerOf(tokenId);
         require(owner != address(0), "SoulboundModERC721: Invalid Token ID - token nonexistant/not minted");
         return owner;
     }
 
-    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual {
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual override {
         require(_owners[tokenId] != address(0), "SoulboundModERC721: Token ID does not exist");
         require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
         _safeTransfer(from, to, tokenId, data);
         require(_checkOnERC721Received(from, to, tokenId, data), "SoulboundModERC721: Transfer to non ERC721Receiver (not implemented)");
     }
 
-    function safeTransferFrom(address from, address to, uint256 tokenId) external virtual {
+    function safeTransferFrom(address from, address to, uint256 tokenId) public virtual override {
         safeTransferFrom(from, to, tokenId, "");
     }
     
-    function transferFrom(address from, address to, uint256 tokenId) external virtual {        
+    function transferFrom(address from, address to, uint256 tokenId) external virtual override {        
         require(_owners[tokenId] != address(0), "SoulboundModERC721: Token ID does not exist");
         require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
 
@@ -64,9 +65,9 @@ contract SoulboundModERC721 is Context, ERC165, IERC721, IERC721Metadata {
         emit Transfer(from, to, tokenId);
     }
 
-    function approve(address to, uint256 tokenId) public virtual {
+    function approve(address to, uint256 tokenId) public virtual override {
         address owner = _ownerOf(tokenId);
-        require(to != owner, "SoulboundModERC721: Approval to current owner");
+        require(to != owner, "SoulboundModERC721: Approval to current owner is not allowed");
 
         require(
             _msgSender() == owner || isApprovedForAll(owner, _msgSender()),
@@ -76,53 +77,63 @@ contract SoulboundModERC721 is Context, ERC165, IERC721, IERC721Metadata {
         _approve(to, tokenId);
     }
 
-    function setApprovalForAll(address operator_, bool approved) external {
+    function setApprovalForAll(address operator_, bool approved) public virtual override {
         _operatorApprovals[msg.sender][operator_] = approved;
         emit ApprovalForAll(msg.sender, operator_, approved);
     }
 
-    function getApproved(uint256 tokenId) public view virtual returns (address) {
+    function getApproved(uint256 tokenId) public view virtual override returns (address) {
         _requireMinted(tokenId);
 
         return _tokenApprovals[tokenId];
     }
 
-    function isApprovedForAll(address owner, address operator) public view virtual returns (bool) {
+    function isApprovedForAll(address owner, address operator) public view virtual override returns (bool) {
         return _operatorApprovals[owner][operator];
     }
 
     // IERC165
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165) returns (bool) {
         return
             interfaceId == type(IERC721).interfaceId ||
             interfaceId == type(IERC721Metadata).interfaceId ||
-            super.supportsInterface(interfaceId);
+            interfaceId == type(IERC165).interfaceId;
     }
 
     // IERC721Metadata
 
-    function name() public view virtual returns (string memory) {
+    function name() public view virtual override returns (string memory) {
         return _name;
     }
     
-    function symbol() public view virtual returns (string memory) {
+    function symbol() public view virtual override returns (string memory) {
         return _symbol;
     }
 
-    function tokenURI(uint256 tokenId) public view virtual returns (string memory) {
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         _requireMinted(tokenId);
 
         return bytes(_baseURI).length > 0 ? string(abi.encodePacked(_baseURI, tokenId.toString())) : "";
     }
 
+    // IERC721Receiver
+    
+    function onERC721Received(
+        address operator, 
+        address from, 
+        uint256 tokenId, 
+        bytes calldata data) external pure override returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    } 
+
     // SoulboundModERC721
 
-    function baseURI() public view virtual returns (string memory) {
+    function baseURI() public view virtual override returns (string memory) {
         return _baseURI;
     }
 
-    function admin() public view virtual returns (address) {
+    function admin() public view virtual override returns (address) {
         return _admin;
     }
 
