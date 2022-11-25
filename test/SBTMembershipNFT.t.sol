@@ -11,8 +11,7 @@ contract SBTMembershipTest is Test {
     string newOrgName = "New Organization";
 
     function setUp() public {
-        sbtMembershipNft = new SoulboundMembershipNFT();
-        sbtMembershipNft.setOrganizationName(myOrgName);
+        sbtMembershipNft = new SoulboundMembershipNFT(myOrgName);
     }
 
     function testGetOrgName() public {
