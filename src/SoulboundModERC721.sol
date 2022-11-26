@@ -30,7 +30,7 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         _admin = admin_;
     }
 
-    // IERC721 Overrides
+    // IERC721 functions implementation
 
     function balanceOf(address owner) public view virtual override returns(uint256) {
         require(owner != address(0), "SoulboundModERC721: Address zero (0) not valid");
@@ -45,9 +45,7 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
 
     function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual override {
         require(_owners[tokenId] != address(0), "SoulboundModERC721: Token ID does not exist");
-        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
         _safeTransfer(from, to, tokenId, data);
-        require(_checkOnERC721Received(from, to, tokenId, data), "SoulboundModERC721: Transfer to non ERC721Receiver (not implemented)");
     }
 
     function safeTransferFrom(address from, address to, uint256 tokenId) public virtual override {
@@ -56,30 +54,18 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
     
     function transferFrom(address from, address to, uint256 tokenId) external virtual override {        
         require(_owners[tokenId] != address(0), "SoulboundModERC721: Token ID does not exist");
-        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
 
         _beforeTokenTransfer(from, to, tokenId, 1);
 
         _transfer(from, to, tokenId);
-
-        emit Transfer(from, to, tokenId);
     }
 
     function approve(address to, uint256 tokenId) public virtual override {
-        address owner = _ownerOf(tokenId);
-        require(to != owner, "SoulboundModERC721: Approval to current owner is not allowed");
-
-        require(
-            _msgSender() == owner || isApprovedForAll(owner, _msgSender()),
-            "SoulboundModERC721: Approve caller is not token owner or approved for all"
-        );
-
         _approve(to, tokenId);
     }
 
-    function setApprovalForAll(address operator_, bool approved) public virtual override {
-        _operatorApprovals[msg.sender][operator_] = approved;
-        emit ApprovalForAll(msg.sender, operator_, approved);
+    function setApprovalForAll(address operator, bool approved) public virtual override {
+        _setApprovalForAll(_msgSender(), operator, approved);
     }
 
     function getApproved(uint256 tokenId) public view virtual override returns (address) {
@@ -92,7 +78,7 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         return _operatorApprovals[owner][operator];
     }
 
-    // IERC165
+    // IERC165 functions implementation
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165) returns (bool) {
         return
@@ -101,7 +87,7 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
             interfaceId == type(IERC165).interfaceId;
     }
 
-    // IERC721Metadata
+    // IERC721Metadata functions implementation
 
     function name() public view virtual override returns (string memory) {
         return _name;
@@ -117,7 +103,21 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         return bytes(_baseURI).length > 0 ? string(abi.encodePacked(_baseURI, tokenId.toString())) : "";
     }
 
-    // IERC721Receiver
+    function safeMint(address to, uint256 tokenId) external virtual {
+
+        _beforeTokenTransfer(address(0), to, tokenId, 1);
+
+        _safeMint(to, tokenId);
+    }
+
+    function mint(address to, uint256 tokenId) external virtual {
+
+        _beforeTokenTransfer(address(0), to, tokenId, 1);
+
+        _mint(to, tokenId);
+    }
+
+    // IERC721Receiver function implementation
     
     function onERC721Received(
         address operator, 
@@ -127,7 +127,7 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         return IERC721Receiver.onERC721Received.selector;
     } 
 
-    // SoulboundModERC721
+    // SoulboundModERC721 proposed functions implementation
 
     function baseURI() public view virtual override returns (string memory) {
         return _baseURI;
@@ -137,7 +137,33 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         return _admin;
     }
 
-    // Internal functions
+    // Internal functions, called by the implemented functions from different interfaces
+
+    function _safeTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) internal virtual {
+        _transfer(from, to, tokenId);
+        require(_checkOnERC721Received(from, to, tokenId, data), "SoulboundModERC721: Transfer to non ERC721Receiver implementer");
+    }
+
+    function _safeMint(address to, uint256 tokenId) internal virtual {
+        _safeMint(to, tokenId, "");
+    }
+
+    function _safeMint(
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) internal virtual {
+        _mint(to, tokenId);
+        require(
+            _checkOnERC721Received(address(0), to, tokenId, data),
+            "SoulboundModERC721: Transfer to non ERC721Receiver implementer"
+        );
+    }
 
     function _transfer(
         address from,
@@ -153,7 +179,9 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
 
         // Check that tokenId was not transferred by `_beforeTokenTransfer` hook
         require(owner == from, "SoulboundModERC721: From address is not the owner of token (changed by _beforeTokenTransfer hook");
-
+        // Clear approvals from the previous owner
+        delete _tokenApprovals[tokenId];
+        
         unchecked {
             // `_balances[from]` cannot overflow for the same reason as described in `_burn`:
             // `from`'s balance is the number of token held, which is at least one before the current
@@ -170,18 +198,61 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         _afterTokenTransfer(from, to, tokenId, 1);
     }
 
-    function _safeTransfer(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes memory data
-    ) internal virtual {
-        _transfer(from, to, tokenId);
-        require(_checkOnERC721Received(from, to, tokenId, data), "ERC721: transfer to non ERC721Receiver implementer");
+    function _mint(address to, uint256 tokenId) internal virtual {
+        require(to != address(0), "SoulboundModERC721: Mint to the zero address");
+        require(!_exists(tokenId), "ERCSoulboundModERC721721: Token already minted");
+
+        _beforeTokenTransfer(address(0), to, tokenId, 1);
+
+        // Check that tokenId was not minted by `_beforeTokenTransfer` hook
+        require(!_exists(tokenId), "SoulboundModERC721: Token already minted");
+
+        unchecked {
+            // Will not overflow unless all 2**256 token ids are minted to the same owner.
+            // Given that tokens are minted one by one, it is impossible in practice that
+            // this ever happens. Might change if we allow batch minting.
+            // The ERC fails to describe this case.
+            _balances[to] += 1;
+        }
+
+        _owners[tokenId] = to;
+
+        emit Transfer(address(0), to, tokenId);
+
+        _afterTokenTransfer(address(0), to, tokenId, 1);
+    }
+
+    function _burn(uint256 tokenId) internal virtual {
+        address owner = _ownerOf(tokenId);
+
+        _beforeTokenTransfer(owner, address(0), tokenId, 1);
+
+        // Update ownership in case tokenId was transferred by `_beforeTokenTransfer` hook
+        owner = _ownerOf(tokenId);
+
+        // Clear approvals
+        delete _tokenApprovals[tokenId];
+
+        unchecked {
+            // Cannot overflow, as that would require more tokens to be burned/transferred
+            // out than the owner initially received through minting and transferring in.
+            _balances[owner] -= 1;
+        }
+        delete _owners[tokenId];
+
+        emit Transfer(owner, address(0), tokenId);
+
+        _afterTokenTransfer(owner, address(0), tokenId, 1);
     }
 
     function _approve(address to, uint256 tokenId) internal virtual {
+        address owner = _ownerOf(tokenId);
+        require(_owners[tokenId] != address(0), "SoulboundModERC721: Token ID does not exist");
+        require(to != owner, "SoulboundModERC721: Approval to current owner is not allowed");
+        require(_msgSender() == _admin, "SoulboundModERC721: msg.sender is not the admin approved for transfer");
+
         _tokenApprovals[tokenId] = to;
+        
         emit Approval(_ownerOf(tokenId), to, tokenId);
     }
 
@@ -191,12 +262,9 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         bool approved
     ) internal virtual {
         require(owner != operator, "SoulboundModERC721: Approval called for owner address");
+        require(operator == _admin, "SoulboundModERC721: Only admin of contract can be approved for all");
         _operatorApprovals[owner][operator] = approved;
         emit ApprovalForAll(owner, operator, approved);
-    }
-
-    function _exists(uint256 tokenId) internal view virtual returns (bool) {
-        return _ownerOf(tokenId) != address(0);
     }
 
     function _beforeTokenTransfer(
@@ -213,22 +281,13 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         uint256 batchSize
     ) internal virtual {}
 
-    function _ownerOf(uint256 tokenId) internal view virtual returns (address) {
-        return _owners[tokenId];
-    }
-
-    function _isApprovedOrOwner(address spender, uint256 tokenId) internal view virtual returns (bool) {
-        address owner = _ownerOf(tokenId);
-        return (spender == owner || isApprovedForAll(owner, spender) || getApproved(tokenId) == spender);
-    }
-
     function _checkOnERC721Received(address from, address to, uint256 tokenId, bytes memory _data) private returns(bool) {
         if (to.isContract()) {
             try IERC721Receiver(to).onERC721Received(_msgSender(), from, tokenId, _data) returns (bytes4 retval) {
                 return retval ==     IERC721Receiver.onERC721Received.selector;
             } catch (bytes memory reason) {
                 if (reason.length == 0) {
-                    revert("BrightIDSoulbound: transfer to non ERC721Receiver implementer");
+                    revert("SoulboundModERC721: Transfer to non ERC721Receiver implementer");
                 } else {
                     assembly {
                         revert(add(32, reason), mload(reason))
@@ -238,6 +297,21 @@ contract SoulboundModERC721 is Context, SBT_IERC721 {
         } else {
             return true;
         }
+    }
+
+    // Utility functions
+
+    function _ownerOf(uint256 tokenId) internal view virtual returns (address) {
+        return _owners[tokenId];
+    }
+
+    function _exists(uint256 tokenId) internal view virtual returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+
+    function _isApprovedOrOwner(address spender, uint256 tokenId) internal view virtual returns (bool) {
+        address owner = _ownerOf(tokenId);
+        return (spender == owner || isApprovedForAll(owner, spender) || getApproved(tokenId) == spender);
     }
     
     function _requireMinted(uint256 tokenId) internal view virtual {
